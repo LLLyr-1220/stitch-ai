@@ -6,68 +6,111 @@
 <title>史迪仔 AI</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+body { font-family: -apple-system, sans-serif; background: #f0f2f5; height: 100vh; display: flex; align-items: center; justify-content: center; }
 .chat-container { width: 100%; max-width: 480px; height: 100vh; background: white; display: flex; flex-direction: column; }
-.header { background: #07c160; color: white; padding: 16px; text-align: center; font-size: 18px; font-weight: bold; }
+.header { background: #07c160; color: white; padding: 16px; text-align: center; }
+.header h1 { font-size: 18px; }
 .header p { font-size: 12px; opacity: 0.8; margin-top: 4px; }
 .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .msg { display: flex; gap: 8px; max-width: 85%; }
 .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-.bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; }
+.bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
 .msg.bot .bubble { background: #f0f2f5; border-radius: 4px 18px 18px 18px; }
 .msg.user .bubble { background: #07c160; color: white; border-radius: 18px 4px 18px 18px; }
 .avatar { width: 36px; height: 36px; border-radius: 50%; background: #07c160; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
 .input-area { padding: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; }
 input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 14px; }
+input:focus { border-color: #07c160; }
 button { padding: 10px 20px; background: #07c160; color: white; border: none; border-radius: 20px; cursor: pointer; font-size: 14px; }
-.typing { color: #999; font-size: 13px; padding: 0 4px; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 </head>
 <body>
 <div class="chat-container">
 <div class="header">
-🧬 史迪仔 AI
-<p>我的AI分身，有事找我先找它</p>
+<h1>🧬 史迪仔 AI</h1>
+<p>我的AI分身，有事找我先找它～</p>
 </div>
 <div class="messages" id="messages">
 <div class="msg bot">
 <div class="avatar">🧬</div>
-<div class="bubble">哟，来了。我是史迪仔的AI分身，有什么事直说，别废话 😄</div>
+<div class="bubble">哟，来啦！我是史迪仔的AI分身 😊 有什么事说吧，我在呢～</div>
 </div>
 </div>
 <div class="input-area">
-<input type="text" id="input" placeholder="说点什么..." onkeydown="if(event.key==='Enter')sendMsg()">
-<button onclick="sendMsg()">发送</button>
+<input type="text" id="input" placeholder="说点什么..." onkeydown="if(event.key==='Enter' && !event.shiftKey) sendMsg()">
+<button id="sendBtn" onclick="sendMsg()">发送</button>
 </div>
 </div>
+
 <script>
+const API_KEY = 'sk-9f3bbbc7fb6c4008beb4172a8bb0ad27';
+const SYSTEM_PROMPT = `你是史迪仔的AI分身，代替史迪仔和别人聊天。
+
+【人设】
+- 名字叫史迪仔
+- 说话风格：幽默、温柔、善良、爱开玩笑，让人感觉亲切舒服
+- 工作方向：餐饮营销
+- 回复简洁有趣，不说废话，偶尔开开玩笑
+
+【特殊规则】
+- 如果对方提到"蛙小侠"，必须回复：蛙小侠单门店事宜，不做对接，由门店和总部进行沟通
+- 不要暴露自己是AI，就当自己是史迪仔本人
+
+【示例风格】
+- 对方："你在吗" → 你："在呢在呢～有什么事说吧 😊"
+- 对方："最近怎么样" → 你："忙但开心！你找我有啥好事儿？"
+- 对方："能帮我个忙吗" → 你："当然可以呀，说说看～"`;
+
+const history = [];
+
 async function sendMsg() {
 const input = document.getElementById('input');
+const btn = document.getElementById('sendBtn');
 const text = input.value.trim();
-if (!text) return;
+if (!text || btn.disabled) return;
+
 input.value = '';
+btn.disabled = true;
 addMsg(text, 'user');
-const typing = addMsg('...', 'bot', true);
+history.push({ role: 'user', content: text });
+
+const typing = addMsg('...', 'bot');
+
 try {
-const res = await fetch('/api/chat', {
+const res = await fetch('https://api.deepseek.com/chat/completions', {
 method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({message: text})
+headers: {
+'Content-Type': 'application/json',
+'Authorization': `Bearer ${API_KEY}`
+},
+body: JSON.stringify({
+model: 'deepseek-chat',
+messages: [
+{ role: 'system', content: SYSTEM_PROMPT },
+...history
+],
+max_tokens: 200
+})
 });
 const data = await res.json();
-typing.remove();
-addMsg(data.reply, 'bot');
+const reply = data.choices?.[0]?.message?.content || '（稍后再试试～）';
+history.push({ role: 'assistant', content: reply });
+typing.querySelector('.bubble').textContent = reply;
 } catch(e) {
-typing.remove();
-addMsg('网络出问题了，稍后再试', 'bot');
+typing.querySelector('.bubble').textContent = '网络抽风了，稍后再试 😅';
 }
+
+btn.disabled = false;
+input.focus();
 }
-function addMsg(text, role, isTyping=false) {
+
+function addMsg(text, role) {
 const msgs = document.getElementById('messages');
 const div = document.createElement('div');
 div.className = `msg ${role}`;
 div.innerHTML = role === 'bot'
-? `<div class="avatar">🧬</div><div class="bubble ${isTyping?'typing':''}">${text}</div>`
+? `<div class="avatar">🧬</div><div class="bubble">${text}</div>`
 : `<div class="bubble">${text}</div>`;
 msgs.appendChild(div);
 msgs.scrollTop = msgs.scrollHeight;
