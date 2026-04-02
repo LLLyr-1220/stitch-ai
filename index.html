@@ -23,9 +23,26 @@ input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 20px
 input:focus { border-color: #07c160; }
 button { padding: 10px 20px; background: #07c160; color: white; border: none; border-radius: 20px; cursor: pointer; font-size: 14px; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: white; border-radius: 16px; padding: 24px; width: 320px; text-align: center; }
+.modal h2 { font-size: 16px; margin-bottom: 8px; }
+.modal p { font-size: 13px; color: #666; margin-bottom: 16px; }
+.modal input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 10px; outline: none; font-size: 13px; margin-bottom: 12px; }
+.modal button { width: 100%; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
+<!-- API Key 弹窗 -->
+<div class="modal-overlay hidden" id="keyModal">
+<div class="modal">
+<h2>🔑 首次配置</h2>
+<p>输入你的 Deepseek API Key<br>只需输入一次，自动保存在本地</p>
+<input type="password" id="keyInput" placeholder="sk-xxxxxxxxxx">
+<button onclick="saveKey()">确认保存</button>
+</div>
+</div>
+
 <div class="chat-container">
 <div class="header">
 <h1>🧬 史迪仔 AI</h1>
@@ -44,7 +61,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 </div>
 
 <script>
-const API_KEY = 'sk-9f3bbbc7fb6c4008beb4172a8bb0ad27';
 const SYSTEM_PROMPT = `你是史迪仔的AI分身，代替史迪仔和别人聊天。
 
 【人设】
@@ -63,12 +79,28 @@ const SYSTEM_PROMPT = `你是史迪仔的AI分身，代替史迪仔和别人聊�
 - 对方："能帮我个忙吗" → 你："当然可以呀，说说看～"`;
 
 const history = [];
+let apiKey = localStorage.getItem('ds_api_key');
+
+window.onload = () => {
+if (!apiKey) {
+document.getElementById('keyModal').classList.remove('hidden');
+}
+};
+
+function saveKey() {
+const val = document.getElementById('keyInput').value.trim();
+if (!val.startsWith('sk-')) { alert('Key 格式不对，应该以 sk- 开头'); return; }
+localStorage.setItem('ds_api_key', val);
+apiKey = val;
+document.getElementById('keyModal').classList.add('hidden');
+}
 
 async function sendMsg() {
 const input = document.getElementById('input');
 const btn = document.getElementById('sendBtn');
 const text = input.value.trim();
 if (!text || btn.disabled) return;
+if (!apiKey) { document.getElementById('keyModal').classList.remove('hidden'); return; }
 
 input.value = '';
 btn.disabled = true;
@@ -82,7 +114,7 @@ const res = await fetch('https://api.deepseek.com/chat/completions', {
 method: 'POST',
 headers: {
 'Content-Type': 'application/json',
-'Authorization': `Bearer ${API_KEY}`
+'Authorization': `Bearer ${apiKey}`
 },
 body: JSON.stringify({
 model: 'deepseek-chat',
